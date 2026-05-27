@@ -177,28 +177,27 @@ router.delete("/", async (req, res) => {
 // @route POST /api/cart/merge
 // @desc Merge guest cart into user cart on login
 // @access Private
+// @route POST /api/cart/merge
 router.post("/merge", protect, async (req, res) => {
   const { guestId } = req.body;
 
   try {
-    // 1. Fetch carts
     const guestCart = await Cart.findOne({ guestId });
     const userCart = await Cart.findOne({ user: req.user._id });
 
-    // 2. Validate guest cart
     if (!guestCart || guestCart.products.length === 0) {
       return res.status(400).json({ message: "No guest cart to merge" });
     }
 
-    // 3. Scenario: User already has a cart, merge into it
     if (userCart) {
+      // SAFE LOOP: Filter out any items in guestCart that are missing productId
       guestCart.products.forEach((guestItem) => {
-        // Skip malformed guest items
-        if (!guestItem.productId) return;
+        if (!guestItem || !guestItem.productId) return;
 
-        // Find index using Mongoose .equals() for safety
+        // SAFE FIND: Ensure we only compare against items that have a productId
         const productIndex = userCart.products.findIndex(
           (item) =>
+            item &&
             item.productId &&
             item.productId.equals(guestItem.productId) &&
             item.size === guestItem.size &&
@@ -206,27 +205,23 @@ router.post("/merge", protect, async (req, res) => {
         );
 
         if (productIndex > -1) {
-          // Update quantity if item exists
           userCart.products[productIndex].quantity += guestItem.quantity;
         } else {
-          // Add new item if it doesn't exist
           userCart.products.push(guestItem);
         }
       });
 
-      // Recalculate total price
       userCart.totalPrice = userCart.products.reduce(
-        (acc, item) => acc + (item.price || 0) * item.quantity,
+        (acc, item) => acc + (item.price || 0) * (item.quantity || 0),
         0,
       );
 
       await userCart.save();
-      await Cart.findOneAndDelete({ guestId }); // Remove the now-empty guest cart
+      await Cart.findOneAndDelete({ guestId });
       return res.status(200).json(userCart);
     } else {
-      // 4. Scenario: User has no cart, take ownership of the guest cart
       guestCart.user = req.user._id;
-      guestCart.guestId = undefined; // Clear guest identifier
+      guestCart.guestId = undefined;
       await guestCart.save();
       return res.status(200).json(guestCart);
     }
