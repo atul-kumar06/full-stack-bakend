@@ -62,7 +62,7 @@ const orderSchema = new mongoose.Schema(
     paymentDetails: {
       type: mongoose.Schema.Types.Mixed,
     },
-    staus: {
+    status: {
       type: String,
       enum: ["Processing", "Shipped", "Delivered", "Cancelled"],
       default: "Processing",

@@ -23,22 +23,25 @@ const userSchema = new mongoose.Schema(
 
 // Password hash middleware
 
+// --- Updated Users.js ---
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+  // If password isn't modified, proceed without hashing
+  if (!this.isModified("password")) {
+    return;
+  }
 
   try {
+    // Generate salt and hash the password
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    // next(); // <-- CRITICAL: Tells Mongoose to proceed with saving the document
   } catch (error) {
-    next(error); // Passes any unexpected hashing errors to your Express error handler
+    // Pass any errors to the Mongoose/Express error handler
+    throw error;
   }
 });
 
 // Match entered password to hashed password
 userSchema.methods.matchPassword = async function (enteredPassword) {
-  // Removed redundant 'await' right before return
-  return bcrypt.compare(enteredPassword, this.password);
+  return await bcrypt.compare(enteredPassword, this.password);
 };
-
 module.exports = mongoose.model("User", userSchema);
